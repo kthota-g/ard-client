@@ -2,7 +2,7 @@ import httpx
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Literal
 
-from agent_finder_sdk.types import (
+from agent_finder_client.types import (
     CapabilityManifest,
     ExploreRequest,
     ExploreResultType,

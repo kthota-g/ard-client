@@ -1,4 +1,4 @@
-from agent_finder_sdk.types import (
+from agent_finder_client.types import (
     Attestation,
     ProvenanceLink,
     TrustManifest,
@@ -21,7 +21,7 @@ from agent_finder_sdk.types import (
     ListResponse,
     Error,
 )
-from agent_finder_sdk.client import (
+from agent_finder_client.client import (
     AgentFinderClient,
     AgentFinderException,
     AgentFinderError,

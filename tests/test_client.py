@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import httpx
 
-from agent_finder_sdk import (
+from agent_finder_client import (
     AgentFinderClient,
     CapabilityManifest,
     SearchResponse,
@@ -221,7 +221,7 @@ async def test_intelligent_fetch_manifest_url_parsing():
 
 @pytest.mark.asyncio
 async def test_custom_error_handling():
-    from agent_finder_sdk import AgentFinderError
+    from agent_finder_client import AgentFinderError
 
     error_json = {
         "errorCode": "INVALID_ARGUMENT",
@@ -242,7 +242,7 @@ async def test_custom_error_handling():
 
 @pytest.mark.asyncio
 async def test_client_from_manifest():
-    from agent_finder_sdk import CapabilityManifest
+    from agent_finder_client import CapabilityManifest
     # Create a mock CapabilityManifest with a registry entry
     manifest_data = {
         "specVersion": "1.0",
@@ -298,7 +298,7 @@ async def test_client_from_manifest():
 
 @pytest.mark.asyncio
 async def test_client_http_error_wrapping():
-    from agent_finder_sdk import AgentFinderHttpError, AgentFinderException
+    from agent_finder_client import AgentFinderHttpError, AgentFinderException
 
     # Setup mock post to raise HTTPStatusError when raise_for_status is called
     req = httpx.Request("POST", "https://registry.example.com/api/v1/search")
@@ -318,7 +318,7 @@ async def test_client_http_error_wrapping():
 
 @pytest.mark.asyncio
 async def test_client_network_error_wrapping():
-    from agent_finder_sdk import AgentFinderNetworkError, AgentFinderException
+    from agent_finder_client import AgentFinderNetworkError, AgentFinderException
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.side_effect = httpx.ConnectError("Connection refused")
@@ -334,7 +334,7 @@ async def test_client_network_error_wrapping():
 
 @pytest.mark.asyncio
 async def test_fetch_manifest_http_error_wrapping():
-    from agent_finder_sdk import AgentFinderHttpError
+    from agent_finder_client import AgentFinderHttpError
 
     # Setup mock response returning a plain text 404 error
     req = httpx.Request("GET", "https://example.com/.well-known/ai-catalog.json")
@@ -351,7 +351,7 @@ async def test_fetch_manifest_http_error_wrapping():
 
 @pytest.mark.asyncio
 async def test_fetch_manifest_network_error_wrapping():
-    from agent_finder_sdk import AgentFinderNetworkError
+    from agent_finder_client import AgentFinderNetworkError
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.side_effect = httpx.ConnectError("Connection refused")
@@ -365,7 +365,7 @@ async def test_fetch_manifest_network_error_wrapping():
 
 @pytest.mark.asyncio
 async def test_client_custom_client_configuration():
-    custom_headers = {"Authorization": "Bearer test-token", "X-Client-Name": "agent-finder-sdk-test"}
+    custom_headers = {"Authorization": "Bearer test-token", "X-Client-Name": "agent-finder-client-test"}
     custom_timeout = httpx.Timeout(15.0)
     
     req = httpx.Request("POST", "https://registry.example.com/api/v1/search")
@@ -377,7 +377,7 @@ async def test_client_custom_client_configuration():
         async with httpx.AsyncClient(headers=custom_headers, timeout=custom_timeout) as async_client:
             # Verify client setup
             assert async_client.headers["Authorization"] == "Bearer test-token"
-            assert async_client.headers["X-Client-Name"] == "agent-finder-sdk-test"
+            assert async_client.headers["X-Client-Name"] == "agent-finder-client-test"
             assert async_client.timeout.read == 15.0
             
             # Pass custom client to AgentFinderClient
