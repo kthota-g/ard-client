@@ -10,7 +10,7 @@ Python client library for consuming the Agent Finder Specification (federated di
 - ⚙️ **Customizable client**: Easily configure authorization headers, timeouts, proxy transports, and reuse existing HTTP client instances.
 
 ## 🚀 Installation
-Requires Python >= 3.13. 
+Requires Python >= 3.10. 
 
 ```bash
 uv add agent-finder-client

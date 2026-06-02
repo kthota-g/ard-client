@@ -1,17 +1,36 @@
 [project]
 name = "agent-finder-client"
-version = "0.1.0"
-description = "Add your description here"
+dynamic = ["version"]
+description = "Python client library for consuming the Agent Finder APIs"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.13.4",
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.27,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_finder_client"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["tests/"]
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
 
 [dependency-groups]
 dev = [
@@ -19,3 +38,4 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15.15",
 ]
+

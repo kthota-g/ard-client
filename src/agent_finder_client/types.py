@@ -1,5 +1,6 @@
-from enum import StrEnum
-from typing import Any, Dict, List, Literal, Self
+from enum import Enum
+from typing import Any, Dict, List, Literal
+from typing_extensions import Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -18,7 +19,7 @@ class BaseModelWithAlias(BaseModel):
         return cls.model_validate(data)
 
 
-class CatalogEntryType(StrEnum):
+class CatalogEntryType(str, Enum):
     """Well-known IANA media types for AI catalog entries and registries."""
 
     AI_CATALOG = "application/ai-catalog+json"

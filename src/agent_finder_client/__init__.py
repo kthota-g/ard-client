@@ -58,4 +58,12 @@ __all__ = [
     "AgentFinderHttpError",
     "AgentFinderNetworkError",
     "fetch_manifest",
+    "__version__",
 ]
+
+from importlib.metadata import version as _version
+
+try:
+    __version__ = _version("agent-finder-client")
+except Exception:
+    __version__ = "unknown"
