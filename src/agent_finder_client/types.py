@@ -20,6 +20,7 @@ class BaseModelWithAlias(BaseModel):
 
 class CatalogEntryType(StrEnum):
     """Well-known IANA media types for AI catalog entries and registries."""
+
     AI_CATALOG = "application/ai-catalog+json"
     A2A_AGENT_CARD = "application/a2a-agent-card+json"
     MCP_SERVER_CARD = "application/mcp-server-card+json"
@@ -28,6 +29,7 @@ class CatalogEntryType(StrEnum):
 
 class Attestation(BaseModelWithAlias):
     """Provides verifiable proof of a claim (e.g., compliance certifications)."""
+
     type_: str = Field(alias="type")
     uri: str
     mediaType: str
@@ -36,6 +38,7 @@ class Attestation(BaseModelWithAlias):
 
 class ProvenanceLink(BaseModelWithAlias):
     """Cryptographic lineage trail of the artifact."""
+
     relation: Literal["derivedFrom", "publishedFrom", "copiedFrom"] | str
     sourceId: str
     sourceDigest: str | None = None
@@ -43,6 +46,7 @@ class ProvenanceLink(BaseModelWithAlias):
 
 class TrustManifest(BaseModelWithAlias):
     """Zero-trust security, identity, and compliance envelope metadata."""
+
     identity: str
     identityType: Literal["spiffe", "did", "https", "other"] | str | None = None
     attestations: List[Attestation] | None = None
@@ -52,6 +56,7 @@ class TrustManifest(BaseModelWithAlias):
 
 class HostInfo(BaseModelWithAlias):
     """Information about the catalog publisher or hosting entity."""
+
     displayName: str
     identifier: str | None = None
     documentationUrl: str | None = None
@@ -61,15 +66,20 @@ class HostInfo(BaseModelWithAlias):
 
 class CatalogEntry(BaseModelWithAlias):
     """A single entry in the capability manifest representing an agent or capability."""
+
     identifier: str = Field(pattern=r"^urn:ai:[a-zA-Z0-9.-]+(:[a-zA-Z0-9._-]+)+$")
     displayName: str
     type_: CatalogEntryType | str = Field(alias="type")
     url: str | None = None
-    data: Any | None = None  # Embedded JSON object containing the full artifact document
+    data: Any | None = (
+        None  # Embedded JSON object containing the full artifact document
+    )
     description: str | None = None
     tags: List[str] | None = None
     capabilities: List[str] | None = None
-    representativeQueries: List[str] | None = Field(default=None, min_length=2, max_length=5)
+    representativeQueries: List[str] | None = Field(
+        default=None, min_length=2, max_length=5
+    )
     version: str | None = None
     updatedAt: str | None = None
     metadata: Dict[str, str | int | float | bool | None] | None = None
@@ -87,6 +97,7 @@ class CatalogEntry(BaseModelWithAlias):
 
 class CatalogCollection(BaseModelWithAlias):
     """Lists nested or related catalogs."""
+
     url: str  # Required
     displayName: str | None = None
     description: str | None = None
@@ -94,6 +105,7 @@ class CatalogCollection(BaseModelWithAlias):
 
 class CapabilityManifest(BaseModelWithAlias):
     """The capability manifest (ai-catalog.json) hosted by publishers."""
+
     specVersion: str
     host: HostInfo | None = None  # Optional in core schema
     entries: List[CatalogEntry] = Field(default_factory=list)
@@ -102,6 +114,7 @@ class CapabilityManifest(BaseModelWithAlias):
 
 class QueryModel(BaseModelWithAlias):
     """Shared semantic and structural query object for POST /search and POST /explore."""
+
     text: str  # Required in OpenAPI QueryModel
     filter_: Dict[str, List[str]] | None = Field(default=None, alias="filter")
 
@@ -139,6 +152,7 @@ class QueryModel(BaseModelWithAlias):
 
 class SearchRequest(BaseModelWithAlias):
     """Payload for search POST request."""
+
     query: QueryModel
     federation: Literal["auto", "referrals", "none"] = "auto"
     pageSize: int = 10
@@ -147,20 +161,25 @@ class SearchRequest(BaseModelWithAlias):
 
 class SearchResult(CatalogEntry):
     """A CatalogEntry with added search registry fields: score and source."""
+
     score: int = Field(ge=0, le=100)  # Required in OpenAPI SearchResultItem
     source: str  # Required in OpenAPI SearchResultItem
 
 
 class RegistryReferral(BaseModelWithAlias):
     """Workload pointer recommendation details for federated upstream registries."""
+
     identifier: str
     displayName: str
-    type_: Literal["application/ai-registry", "application/ai-registry+json"] | str = Field(alias="type")
+    type_: Literal["application/ai-registry", "application/ai-registry+json"] | str = (
+        Field(alias="type")
+    )
     url: str
 
 
 class SearchResponse(BaseModelWithAlias):
     """Payload for search response."""
+
     results: List[SearchResult]
     referrals: List[RegistryReferral] | None = None
     pageToken: str | None = None
@@ -168,8 +187,10 @@ class SearchResponse(BaseModelWithAlias):
 
 # Explore API Definitions
 
+
 class ExploreFacetRequest(BaseModelWithAlias):
     """Configures aggregation parameters for a single facet path."""
+
     field: str
     limit: int = 20
     minCount: int = 1
@@ -177,35 +198,41 @@ class ExploreFacetRequest(BaseModelWithAlias):
 
 class ExploreResultType(BaseModelWithAlias):
     """Configures the facets to compute in an Explore request."""
+
     facets: List[ExploreFacetRequest]
 
 
 class ExploreRequest(BaseModelWithAlias):
     """Payload for POST /explore request."""
+
     query: QueryModel | None = None
     resultType: ExploreResultType
 
 
 class ExploreFacetBucket(BaseModelWithAlias):
     """A single bucket in a facet aggregation containing a value and match count."""
+
     value: str
     count: int
 
 
 class ExploreFacetResult(BaseModelWithAlias):
     """Contains the list of facet buckets and other counts for a specific aggregated path."""
+
     buckets: List[ExploreFacetBucket]
     otherCount: int | None = None
 
 
 class ExploreResponse(BaseModelWithAlias):
     """Payload for Explore response."""
+
     resultType: Literal["facets"] = "facets"
     facets: Dict[str, ExploreFacetResult]
 
 
 class ListResponse(BaseModelWithAlias):
     """Payload for deterministic browsing list response."""
+
     items: List[CatalogEntry]
     total: int | None = None
     pageToken: str | None = None
@@ -213,5 +240,6 @@ class ListResponse(BaseModelWithAlias):
 
 class Error(BaseModelWithAlias):
     """Standard error object returned by the Registry API."""
+
     errorCode: str
     message: str

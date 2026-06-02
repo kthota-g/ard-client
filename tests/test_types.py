@@ -102,13 +102,13 @@ EXAMPLE_MANIFEST = """{
 def test_manifest_parsing():
     data = json.loads(EXAMPLE_MANIFEST)
     manifest = CapabilityManifest.from_dict(data)
-    
+
     # Validate fields
     assert manifest.specVersion == "1.0"
     assert manifest.host.displayName == "example Enterprise AI"
     assert manifest.host.identifier == "did:web:example.com"
     assert len(manifest.entries) == 4
-    
+
     # Check the first entry
     entry1 = manifest.entries[0]
     assert entry1.identifier == "urn:ai:example.com:agent:assistant"
@@ -132,17 +132,20 @@ def test_manifest_parsing():
     assert entry4.trustManifest.identity == "spiffe://example.com/registry/global"
     assert len(entry4.trustManifest.attestations) == 2
     assert entry4.trustManifest.attestations[0].type_ == "SPIFFE-X509"
-    
+
     # Check collections
     assert len(manifest.collections) == 1
     assert manifest.collections[0].displayName == "Engineering Department Catalogs"
 
     # Re-serialize and parse to make sure it matches
     serialized = manifest.to_dict()
-    
+
     # Verify that JSON output still uses "type" key
     assert serialized["entries"][0]["type"] == "application/a2a-agent-card+json"
-    assert serialized["entries"][3]["trustManifest"]["attestations"][0]["type"] == "SPIFFE-X509"
+    assert (
+        serialized["entries"][3]["trustManifest"]["attestations"][0]["type"]
+        == "SPIFFE-X509"
+    )
 
     reparsed = CapabilityManifest.from_dict(serialized)
     assert reparsed.specVersion == manifest.specVersion
@@ -192,7 +195,6 @@ def test_validation_constraints():
     except ValueError as e:
         assert "exactly one of 'url' or 'data'" in str(e)
 
-
     print("test_validation_constraints passed successfully!")
 
 
@@ -202,11 +204,11 @@ def test_search_types():
             "text": "find me a flight booking agent",
             "filter": {
                 "type": ["application/a2a-agent-card+json"],
-                "compliance": "hipaa"
-            }
+                "compliance": "hipaa",
+            },
         },
         "federation": "referrals",
-        "pageSize": 5
+        "pageSize": 5,
     }
     req = SearchRequest.from_dict(search_req_dict)
     assert req.query.text == "find me a flight booking agent"
@@ -222,28 +224,26 @@ def test_search_types():
     assert serialized["federation"] == "referrals"
     assert serialized["pageSize"] == 5
 
-
-
     search_resp_dict = {
-      "results": [
-        {
-          "identifier": "urn:ai:example.com:agent:assistant",
-          "displayName": "Corporate Assistant (A2A)",
-          "type": "application/a2a-agent-card+json",
-          "url": "https://api.example.com/agents/assistant.json",
-          "score": 95,
-          "source": "https://registry.example.com/api/v1/"
-        }
-      ],
-      "referrals": [
-        {
-          "identifier": "urn:ai:nlweb.ai:registry:public",
-          "displayName": "Public Agent Finder",
-          "type": "application/ai-registry",
-          "url": "https://finder.nlweb.ai/search"
-        }
-      ],
-      "pageToken": "token-123"
+        "results": [
+            {
+                "identifier": "urn:ai:example.com:agent:assistant",
+                "displayName": "Corporate Assistant (A2A)",
+                "type": "application/a2a-agent-card+json",
+                "url": "https://api.example.com/agents/assistant.json",
+                "score": 95,
+                "source": "https://registry.example.com/api/v1/",
+            }
+        ],
+        "referrals": [
+            {
+                "identifier": "urn:ai:nlweb.ai:registry:public",
+                "displayName": "Public Agent Finder",
+                "type": "application/ai-registry",
+                "url": "https://finder.nlweb.ai/search",
+            }
+        ],
+        "pageToken": "token-123",
     }
 
     resp = SearchResponse.from_dict(search_resp_dict)
@@ -293,11 +293,11 @@ def test_catalog_entry_type_enum():
         identifier="urn:ai:test.com:namespace:enum1",
         displayName="Enum Test 1",
         type_="application/a2a-agent-card+json",
-        url="https://test1.com"
+        url="https://test1.com",
     )
     assert c1.type_ == CatalogEntryType.A2A_AGENT_CARD
     assert c1.type_ == "application/a2a-agent-card+json"
-    
+
     # Re-serialization test
     serialized1 = c1.to_dict()
     assert serialized1["type"] == "application/a2a-agent-card+json"
@@ -307,7 +307,7 @@ def test_catalog_entry_type_enum():
         identifier="urn:ai:test.com:namespace:enum2",
         displayName="Enum Test 2",
         type_="application/custom-protocol+json",
-        url="https://test2.com"
+        url="https://test2.com",
     )
     assert c2.type_ == "application/custom-protocol+json"
 
@@ -327,7 +327,7 @@ def test_query_model_filter_coercion():
             "float_key": 3.14,
             "bool_key": True,
             "none_key": None,
-        }
+        },
     )
     assert q.filter_ == {
         "str_key": ["value"],
@@ -342,7 +342,7 @@ def test_query_model_filter_coercion():
         text="test query 2",
         filter={
             "mixed_key": ["val1", 100, False, None],
-        }
+        },
     )
     assert q2.filter_ == {
         "mixed_key": ["val1", "100", "false"],

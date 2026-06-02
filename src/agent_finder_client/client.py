@@ -1,6 +1,6 @@
 import httpx
 from urllib.parse import urlparse
-from typing import List, Dict, Any, Literal
+from typing import List, Dict, Literal
 
 from agent_finder_client.types import (
     CapabilityManifest,
@@ -20,6 +20,7 @@ class AgentFinderException(Exception):
 
 class AgentFinderError(AgentFinderException):
     """Custom exception raised when the Agent Finder API returns a structured error response."""
+
     def __init__(self, status_code: int, error_code: str, message: str):
         super().__init__(f"[{error_code}] {message} (HTTP {status_code})")
         self.status_code = status_code
@@ -29,6 +30,7 @@ class AgentFinderError(AgentFinderException):
 
 class AgentFinderHttpError(AgentFinderException):
     """Exception raised for generic HTTP error status codes not having structured API errors."""
+
     def __init__(self, status_code: int, message: str, response: httpx.Response):
         super().__init__(f"HTTP {status_code}: {message}")
         self.status_code = status_code
@@ -37,6 +39,7 @@ class AgentFinderHttpError(AgentFinderException):
 
 class AgentFinderNetworkError(AgentFinderException):
     """Exception raised for network-level issues (e.g., DNS resolution, connection timeout)."""
+
     def __init__(self, message: str, original_exception: Exception):
         super().__init__(message)
         self.original_exception = original_exception
@@ -124,7 +127,9 @@ class AgentFinderClient:
         """
         if base_url:
             base_url = base_url.rstrip("/")
-            if not base_url.startswith("http://") and not base_url.startswith("https://"):
+            if not base_url.startswith("http://") and not base_url.startswith(
+                "https://"
+            ):
                 base_url = f"https://{base_url}"
         self.base_url = base_url
         self._client = client or httpx.AsyncClient()
@@ -149,12 +154,16 @@ class AgentFinderClient:
         :raises ValueError: If no suitable registry entry is found in the manifest.
         """
         registry_entries = [
-            entry for entry in manifest.entries
-            if entry.type_ == "application/ai-registry+json" or entry.type_ == "application/ai-registry"
+            entry
+            for entry in manifest.entries
+            if entry.type_ == "application/ai-registry+json"
+            or entry.type_ == "application/ai-registry"
         ]
 
         if not registry_entries:
-            raise ValueError("No registry entries ('application/ai-registry+json') found in the capability manifest.")
+            raise ValueError(
+                "No registry entries ('application/ai-registry+json') found in the capability manifest."
+            )
 
         selected_entry = None
         if identifier:
@@ -163,12 +172,16 @@ class AgentFinderClient:
                     selected_entry = entry
                     break
             if not selected_entry:
-                raise ValueError(f"No registry entry with identifier '{identifier}' found in the capability manifest.")
+                raise ValueError(
+                    f"No registry entry with identifier '{identifier}' found in the capability manifest."
+                )
         else:
             selected_entry = registry_entries[0]
 
         if not selected_entry.url:
-            raise ValueError(f"Selected registry entry '{selected_entry.identifier}' does not define a 'url'.")
+            raise ValueError(
+                f"Selected registry entry '{selected_entry.identifier}' does not define a 'url'."
+            )
 
         return cls(base_url=selected_entry.url, client=client)
 
@@ -253,7 +266,9 @@ class AgentFinderClient:
         :param filter_: Optional. Structured constraints query filter.
         """
         if not self.base_url:
-            raise ValueError("base_url must be specified to execute registry exploration")
+            raise ValueError(
+                "base_url must be specified to execute registry exploration"
+            )
 
         query = QueryModel(text=text, filter_=filter_) if text else None
         request_payload = ExploreRequest(query=query, resultType=result_type)
