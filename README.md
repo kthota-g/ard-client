@@ -1,15 +1,15 @@
-# Agent Finder Client
+# 🔍 Agent Finder Client
 
 Python client library for consuming the Agent Finder Specification (federated discovery and search for agents).
 
-## Features
-- **Static Discovery**: Easily parse and validate capability manifests (`ai-catalog.json`) conforming to the standard schema.
-- **Dynamic Search**: Seamless asynchronous client for semantically searching dynamically federated Agent Registries.
-- **Facet Introspection**: Run aggregated bucket queries on the dynamic `/explore` endpoint.
-- **Error Handling**: Robust wrapping of all HTTP-status and network exceptions under a cohesive, clean exception tree.
-- **Customizable client**: Easily configure authorization headers, timeouts, proxy transports, and reuse existing HTTP client instances.
+## ✨ Features
+- 🗺️ **Static Discovery**: Easily parse and validate capability manifests (`ai-catalog.json`) conforming to the standard schema.
+- 🔎 **Dynamic Search**: Seamless asynchronous client for semantically searching dynamically federated Agent Registries.
+- 📊 **Facet Introspection**: Run aggregated bucket queries on the dynamic `/explore` endpoint.
+- 🛡️ **Error Handling**: Robust wrapping of all HTTP-status and network exceptions under a cohesive, clean exception tree.
+- ⚙️ **Customizable client**: Easily configure authorization headers, timeouts, proxy transports, and reuse existing HTTP client instances.
 
-## Installation
+## 🚀 Installation
 Requires Python >= 3.13. 
 
 ```bash
@@ -18,9 +18,9 @@ uv add agent-finder-client
 
 ---
 
-## Usage Examples
+## 💡 Usage Examples
 
-### 1. Static Manifest Discovery
+### 1. 🌐 Static Manifest Discovery
 Retrieve and parse a static capability manifest hosted at the well-known URI of a domain.
 
 ```python
@@ -41,7 +41,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 2. Initialize Client from Manifest
+### 2. 🔌 Initialize Client from Manifest
 Bootstrap the Agent Finder client dynamically by searching a capability manifest for advertised registries.
 
 ```python
@@ -59,7 +59,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 3. Dynamic Semantic Search
+### 3. 🧠 Dynamic Semantic Search
 Perform natural language semantic searches against a dynamic Agent Registry.
 
 ```python
@@ -91,7 +91,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 4. Registry Introspection (Facets & Explore)
+### 4. 📊 Registry Introspection (Facets & Explore)
 Execute aggregated statistical and bucket queries over matched capabilities in the search registry.
 
 ```python
@@ -127,7 +127,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 5. Browsing Deterministically
+### 5. 🗂️ Browsing Deterministically
 Query the dynamic registry deterministically using structured filter syntax (ideal for developer portals).
 
 ```python

@@ -61,7 +61,7 @@ class HostInfo(BaseModelWithAlias):
 
 class CatalogEntry(BaseModelWithAlias):
     """A single entry in the capability manifest representing an agent or capability."""
-    identifier: str = Field(pattern=r"^urn:ai:[a-zA-Z0-9.-]+(:[a-zA-Z0-9.-]+)+$")
+    identifier: str = Field(pattern=r"^urn:ai:[a-zA-Z0-9.-]+(:[a-zA-Z0-9._-]+)+$")
     displayName: str
     type_: CatalogEntryType | str = Field(alias="type")
     url: str | None = None
