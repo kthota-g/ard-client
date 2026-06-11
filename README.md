@@ -1,4 +1,4 @@
-# 🔍 ARD Client
+# 🔍 ARD Spec Client
 
 Python client library for consuming the Agentic Resource Discovery Specification (federated discovery and search for agents).
 
