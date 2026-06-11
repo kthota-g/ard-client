@@ -1,6 +1,6 @@
 import json
 import pytest
-from agent_finder_client.types import (
+from ard_client.types import (
     CapabilityManifest,
     CatalogEntry,
     SearchRequest,

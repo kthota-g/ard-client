@@ -83,7 +83,7 @@ class CatalogEntry(BaseModelWithAlias):
     )
     version: str | None = None
     updatedAt: str | None = None
-    metadata: Dict[str, str | int | float | bool | None] | None = None
+    metadata: Dict[str, Any] | None = None
     trustManifest: TrustManifest | None = None
 
     @model_validator(mode="after")
@@ -163,7 +163,7 @@ class SearchRequest(BaseModelWithAlias):
 class SearchResult(CatalogEntry):
     """A CatalogEntry with added search registry fields: score and source."""
 
-    score: int = Field(ge=0, le=100)  # Required in OpenAPI SearchResultItem
+    score: float = Field(ge=0.0, le=100.0)  # Required in OpenAPI SearchResultItem
     source: str  # Required in OpenAPI SearchResultItem
 
 

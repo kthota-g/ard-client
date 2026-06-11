@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import httpx
 
-from agent_finder_client import (
-    AgentFinderClient,
+from ard_client import (
+    ArdClient,
     CapabilityManifest,
     SearchResponse,
     ExploreResultType,
@@ -43,7 +43,7 @@ EXAMPLE_SEARCH_RESPONSE_JSON = {
     "referrals": [
         {
             "identifier": "urn:ai:nlweb.ai:registry:public",
-            "displayName": "Public Agent Finder",
+            "displayName": "Public ARD Registry",
             "type": "application/ai-registry",
             "url": "https://finder.nlweb.ai/search",
         }
@@ -92,7 +92,7 @@ async def test_async_client_search():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with AgentFinderClient(
+        async with ArdClient(
             base_url="https://registry.example.com/api/v1"
         ) as client:
             response = await client.search(
@@ -133,7 +133,7 @@ async def test_async_client_explore():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with AgentFinderClient(
+        async with ArdClient(
             base_url="https://registry.example.com/api/v1"
         ) as client:
             result_type = ExploreResultType(
@@ -191,7 +191,7 @@ async def test_async_client_list_agents():
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_response
 
-        async with AgentFinderClient(
+        async with ArdClient(
             base_url="https://registry.example.com/api/v1"
         ) as client:
             resp = await client.list_agents(
@@ -218,10 +218,10 @@ async def test_async_client_list_agents():
 
 @pytest.mark.asyncio
 async def test_base_url_auto_prefixing():
-    client = AgentFinderClient(base_url="registry.example.com/api/v1")
+    client = ArdClient(base_url="registry.example.com/api/v1")
     assert client.base_url == "https://registry.example.com/api/v1"
 
-    client2 = AgentFinderClient(base_url="http://localhost:8080")
+    client2 = ArdClient(base_url="http://localhost:8080")
     assert client2.base_url == "http://localhost:8080"
 
 
@@ -242,7 +242,7 @@ async def test_intelligent_fetch_manifest_url_parsing():
 
 @pytest.mark.asyncio
 async def test_custom_error_handling():
-    from agent_finder_client import AgentFinderError
+    from ard_client import ArdError
 
     error_json = {
         "errorCode": "INVALID_ARGUMENT",
@@ -253,7 +253,7 @@ async def test_custom_error_handling():
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_response
 
-        with pytest.raises(AgentFinderError) as exc_info:
+        with pytest.raises(ArdError) as exc_info:
             await fetch_manifest("example.com")
 
         assert exc_info.value.status_code == 400
@@ -263,7 +263,7 @@ async def test_custom_error_handling():
 
 @pytest.mark.asyncio
 async def test_client_from_manifest():
-    from agent_finder_client import CapabilityManifest
+    from ard_client import CapabilityManifest
 
     # Create a mock CapabilityManifest with a registry entry
     manifest_data = {
@@ -287,18 +287,18 @@ async def test_client_from_manifest():
     manifest = CapabilityManifest.from_dict(manifest_data)
 
     # 1. Create client by matching first/only registry entry
-    client = AgentFinderClient.from_manifest(manifest)
+    client = ArdClient.from_manifest(manifest)
     assert client.base_url == "https://registry.example.com/api/v1"
 
     # 2. Create client by matching specific URN identifier
-    client2 = AgentFinderClient.from_manifest(
+    client2 = ArdClient.from_manifest(
         manifest, "urn:ai:example.com:registry:global"
     )
     assert client2.base_url == "https://registry.example.com/api/v1"
 
     # 3. Error raised when identifier is not found
     with pytest.raises(ValueError) as exc_info:
-        AgentFinderClient.from_manifest(
+        ArdClient.from_manifest(
             manifest, "urn:ai:example.com:registry:not-exist"
         )
     assert "No registry entry with identifier" in str(exc_info.value)
@@ -318,13 +318,13 @@ async def test_client_from_manifest():
     }
     no_reg_manifest = CapabilityManifest.from_dict(no_registry_manifest_data)
     with pytest.raises(ValueError) as exc_info2:
-        AgentFinderClient.from_manifest(no_reg_manifest)
+        ArdClient.from_manifest(no_reg_manifest)
     assert "No registry entries" in str(exc_info2.value)
 
 
 @pytest.mark.asyncio
 async def test_client_http_error_wrapping():
-    from agent_finder_client import AgentFinderHttpError, AgentFinderException
+    from ard_client import ArdHttpError, ArdException
 
     # Setup mock post to raise HTTPStatusError when raise_for_status is called
     req = httpx.Request("POST", "https://registry.example.com/api/v1/search")
@@ -333,38 +333,38 @@ async def test_client_http_error_wrapping():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with AgentFinderClient(
+        async with ArdClient(
             base_url="https://registry.example.com/api/v1"
         ) as client:
-            with pytest.raises(AgentFinderHttpError) as exc_info:
+            with pytest.raises(ArdHttpError) as exc_info:
                 await client.search("test")
 
-            assert issubclass(AgentFinderHttpError, AgentFinderException)
+            assert issubclass(ArdHttpError, ArdException)
             assert exc_info.value.status_code == 500
             assert "HTTP 500" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
 async def test_client_network_error_wrapping():
-    from agent_finder_client import AgentFinderNetworkError, AgentFinderException
+    from ard_client import ArdNetworkError, ArdException
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.side_effect = httpx.ConnectError("Connection refused")
 
-        async with AgentFinderClient(
+        async with ArdClient(
             base_url="https://registry.example.com/api/v1"
         ) as client:
-            with pytest.raises(AgentFinderNetworkError) as exc_info:
+            with pytest.raises(ArdNetworkError) as exc_info:
                 await client.search("test")
 
-            assert issubclass(AgentFinderNetworkError, AgentFinderException)
+            assert issubclass(ArdNetworkError, ArdException)
             assert "Network error during registry request" in str(exc_info.value)
             assert isinstance(exc_info.value.original_exception, httpx.ConnectError)
 
 
 @pytest.mark.asyncio
 async def test_fetch_manifest_http_error_wrapping():
-    from agent_finder_client import AgentFinderHttpError
+    from ard_client import ArdHttpError
 
     # Setup mock response returning a plain text 404 error
     req = httpx.Request("GET", "https://example.com/.well-known/ai-catalog.json")
@@ -372,7 +372,7 @@ async def test_fetch_manifest_http_error_wrapping():
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_response
 
-        with pytest.raises(AgentFinderHttpError) as exc_info:
+        with pytest.raises(ArdHttpError) as exc_info:
             await fetch_manifest("example.com")
 
         assert exc_info.value.status_code == 404
@@ -381,12 +381,12 @@ async def test_fetch_manifest_http_error_wrapping():
 
 @pytest.mark.asyncio
 async def test_fetch_manifest_network_error_wrapping():
-    from agent_finder_client import AgentFinderNetworkError
+    from ard_client import ArdNetworkError
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.side_effect = httpx.ConnectError("Connection refused")
 
-        with pytest.raises(AgentFinderNetworkError) as exc_info:
+        with pytest.raises(ArdNetworkError) as exc_info:
             await fetch_manifest("example.com")
 
         assert "Network error while fetching manifest" in str(exc_info.value)
@@ -397,7 +397,7 @@ async def test_fetch_manifest_network_error_wrapping():
 async def test_client_custom_client_configuration():
     custom_headers = {
         "Authorization": "Bearer test-token",
-        "X-Client-Name": "agent-finder-client-test",
+        "X-Client-Name": "ard-client-test",
     }
     custom_timeout = httpx.Timeout(15.0)
 
@@ -412,11 +412,11 @@ async def test_client_custom_client_configuration():
         ) as async_client:
             # Verify client setup
             assert async_client.headers["Authorization"] == "Bearer test-token"
-            assert async_client.headers["X-Client-Name"] == "agent-finder-client-test"
+            assert async_client.headers["X-Client-Name"] == "ard-client-test"
             assert async_client.timeout.read == 15.0
 
-            # Pass custom client to AgentFinderClient
-            async with AgentFinderClient(
+            # Pass custom client to ArdClient
+            async with ArdClient(
                 base_url="https://registry.example.com/api/v1", client=async_client
             ) as client:
                 assert client._client is async_client

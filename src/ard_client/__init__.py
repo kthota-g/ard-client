@@ -1,4 +1,4 @@
-from agent_finder_client.types import (
+from ard_client.types import (
     Attestation,
     ProvenanceLink,
     TrustManifest,
@@ -21,12 +21,12 @@ from agent_finder_client.types import (
     ListResponse,
     Error,
 )
-from agent_finder_client.client import (
-    AgentFinderClient,
-    AgentFinderException,
-    AgentFinderError,
-    AgentFinderHttpError,
-    AgentFinderNetworkError,
+from ard_client.client import (
+    ArdClient,
+    ArdException,
+    ArdError,
+    ArdHttpError,
+    ArdNetworkError,
     fetch_manifest,
 )
 
@@ -52,11 +52,11 @@ __all__ = [
     "RegistryReferral",
     "ListResponse",
     "Error",
-    "AgentFinderClient",
-    "AgentFinderException",
-    "AgentFinderError",
-    "AgentFinderHttpError",
-    "AgentFinderNetworkError",
+    "ArdClient",
+    "ArdException",
+    "ArdError",
+    "ArdHttpError",
+    "ArdNetworkError",
     "fetch_manifest",
     "__version__",
 ]
@@ -64,6 +64,6 @@ __all__ = [
 from importlib.metadata import version as _version
 
 try:
-    __version__ = _version("agent-finder-client")
+    __version__ = _version("ard-client")
 except Exception:
     __version__ = "unknown"

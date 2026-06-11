@@ -2,7 +2,7 @@ import httpx
 from urllib.parse import urlparse
 from typing import List, Dict, Literal
 
-from agent_finder_client.types import (
+from ard_client.types import (
     CapabilityManifest,
     ExploreRequest,
     ExploreResultType,
@@ -14,12 +14,12 @@ from agent_finder_client.types import (
 )
 
 
-class AgentFinderException(Exception):
-    """Base exception for all Agent Finder SDK errors."""
+class ArdException(Exception):
+    """Base exception for all ARD SDK errors."""
 
 
-class AgentFinderError(AgentFinderException):
-    """Custom exception raised when the Agent Finder API returns a structured error response."""
+class ArdError(ArdException):
+    """Custom exception raised when the ARD API returns a structured error response."""
 
     def __init__(self, status_code: int, error_code: str, message: str):
         super().__init__(f"[{error_code}] {message} (HTTP {status_code})")
@@ -28,7 +28,7 @@ class AgentFinderError(AgentFinderException):
         self.message = message
 
 
-class AgentFinderHttpError(AgentFinderException):
+class ArdHttpError(ArdException):
     """Exception raised for generic HTTP error status codes not having structured API errors."""
 
     def __init__(self, status_code: int, message: str, response: httpx.Response):
@@ -37,7 +37,7 @@ class AgentFinderHttpError(AgentFinderException):
         self.response = response
 
 
-class AgentFinderNetworkError(AgentFinderException):
+class ArdNetworkError(ArdException):
     """Exception raised for network-level issues (e.g., DNS resolution, connection timeout)."""
 
     def __init__(self, message: str, original_exception: Exception):
@@ -46,14 +46,14 @@ class AgentFinderNetworkError(AgentFinderException):
 
 
 async def _raise_for_status(response: httpx.Response) -> None:
-    """Raise appropriate AgentFinderException subclass for non-success HTTP responses."""
+    """Raise appropriate ArdException subclass for non-success HTTP responses."""
     if response.is_success:
         return
 
     try:
         data = response.json()
         if isinstance(data, dict) and "errorCode" in data and "message" in data:
-            raise AgentFinderError(
+            raise ArdError(
                 status_code=response.status_code,
                 error_code=data["errorCode"],
                 message=data["message"],
@@ -88,20 +88,20 @@ async def fetch_manifest(
             if parsed.query:
                 url += f"?{parsed.query}"
 
-    _client = client or httpx.AsyncClient()
+    _client = client or httpx.AsyncClient(follow_redirects=True)
     try:
         try:
             response = await _client.get(url)
             await _raise_for_status(response)
             return CapabilityManifest.from_dict(response.json())
         except httpx.HTTPStatusError as e:
-            raise AgentFinderHttpError(
+            raise ArdHttpError(
                 status_code=e.response.status_code,
                 message=str(e),
                 response=e.response,
             ) from e
         except httpx.RequestError as e:
-            raise AgentFinderNetworkError(
+            raise ArdNetworkError(
                 message=f"Network error while fetching manifest from {url}: {str(e)}",
                 original_exception=e,
             ) from e
@@ -110,8 +110,8 @@ async def fetch_manifest(
             await _client.aclose()
 
 
-class AgentFinderClient:
-    """Asynchronous client for consuming the Agent Finder API (both static discovery and dynamic registries)."""
+class ArdClient:
+    """Asynchronous client for consuming the ARD API (both static discovery and dynamic registries)."""
 
     def __init__(
         self,
@@ -120,19 +120,26 @@ class AgentFinderClient:
         client: httpx.AsyncClient | None = None,
     ):
         """
-        Initialize the Asynchronous Agent Finder Client.
+        Initialize the Asynchronous ARD Client.
 
         :param base_url: The base URL of the Agent Registry (e.g., "https://registry.example.com/api/v1/").
         :param client: An optional pre-configured httpx.AsyncClient instance.
         """
         if base_url:
             base_url = base_url.rstrip("/")
-            if not base_url.startswith("http://") and not base_url.startswith(
-                "https://"
-            ):
+            if base_url.startswith("http://"):
+                parsed = urlparse(base_url)
+                if parsed.hostname not in ("localhost", "127.0.0.1") and not parsed.hostname.startswith("192.168."):
+                    base_url = f"https://{parsed.netloc}{parsed.path}"
+            elif not base_url.startswith("https://"):
                 base_url = f"https://{base_url}"
+            
+            for suffix in ("/search", "/explore", "/agents"):
+                if base_url.endswith(suffix):
+                    base_url = base_url[:-len(suffix)]
+                    break
         self.base_url = base_url
-        self._client = client or httpx.AsyncClient()
+        self._client = client or httpx.AsyncClient(follow_redirects=True)
         self._own_client = client is None
 
     @classmethod
@@ -142,15 +149,15 @@ class AgentFinderClient:
         identifier: str | None = None,
         *,
         client: httpx.AsyncClient | None = None,
-    ) -> "AgentFinderClient":
+    ) -> "ArdClient":
         """
-        Create an AgentFinderClient from a CapabilityManifest by finding an advertised AI registry.
+        Create an ArdClient from a CapabilityManifest by finding an advertised AI registry.
 
         :param manifest: The CapabilityManifest containing capability and registry entries.
         :param identifier: Optional. The specific URN identifier of the registry entry to use.
                            If not specified, the first registry entry found will be used.
         :param client: Optional pre-configured httpx.AsyncClient instance.
-        :return: An initialized AgentFinderClient.
+        :return: An initialized ArdClient.
         :raises ValueError: If no suitable registry entry is found in the manifest.
         """
         registry_entries = [
@@ -190,7 +197,7 @@ class AgentFinderClient:
         if self._own_client:
             await self._client.aclose()
 
-    async def __aenter__(self) -> "AgentFinderClient":
+    async def __aenter__(self) -> "ArdClient":
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -203,13 +210,13 @@ class AgentFinderClient:
             await _raise_for_status(response)
             return response
         except httpx.HTTPStatusError as e:
-            raise AgentFinderHttpError(
+            raise ArdHttpError(
                 status_code=e.response.status_code,
                 message=str(e),
                 response=e.response,
             ) from e
         except httpx.RequestError as e:
-            raise AgentFinderNetworkError(
+            raise ArdNetworkError(
                 message=f"Network error during registry request to {url}: {str(e)}",
                 original_exception=e,
             ) from e
@@ -224,7 +231,7 @@ class AgentFinderClient:
         page_token: str | None = None,
     ) -> SearchResponse:
         """
-        Search the dynamic Agent Registry for capabilities matching a natural language query.
+        Search the dynamic ARD Registry for capabilities matching a natural language query.
 
         :param text: Required. Natural language description of the need.
         :param filter_: Optional. Structured constraints dictionary.

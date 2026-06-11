@@ -1,7 +1,7 @@
 [project]
-name = "agent-finder-client"
+name = "ard-client"
 dynamic = ["version"]
-description = "Python client library for consuming the Agent Finder APIs"
+description = "Python client library for consuming the Agentic Resource Discovery Specification APIs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,7 +17,7 @@ build-backend = "hatchling.build"
 source = "uv-dynamic-versioning"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agent_finder_client"]
+packages = ["src/ard_client"]
 
 [tool.hatch.build.targets.sdist]
 exclude = ["tests/"]

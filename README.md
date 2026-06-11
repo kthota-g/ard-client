@@ -1,6 +1,6 @@
-# 🔍 Agent Finder Client
+# 🔍 ARD Client
 
-Python client library for consuming the Agent Finder Specification (federated discovery and search for agents).
+Python client library for consuming the Agentic Resource Discovery Specification (federated discovery and search for agents).
 
 ## ✨ Features
 - 🗺️ **Static Discovery**: Easily parse and validate capability manifests (`ai-catalog.json`) conforming to the standard schema.
@@ -13,7 +13,7 @@ Python client library for consuming the Agent Finder Specification (federated di
 Requires Python >= 3.10. 
 
 ```bash
-uv add agent-finder-client
+uv add ard-client
 ```
 
 ---
@@ -25,7 +25,7 @@ Retrieve and parse a static capability manifest hosted at the well-known URI of 
 
 ```python
 import asyncio
-from agent_finder_client import fetch_manifest
+from ard_client import fetch_manifest
 
 async def main():
     # Automatically queries "https://example.com/.well-known/ai-catalog.json"
@@ -38,21 +38,24 @@ async def main():
         if entry.url:
             print(f"  Reference URL: {entry.url}")
 
-asyncio.run(main())
+async def run():
+    await main()
+
+asyncio.run(run())
 ```
 
 ### 2. 🔌 Initialize Client from Manifest
-Bootstrap the Agent Finder client dynamically by searching a capability manifest for advertised registries.
+Bootstrap the ARD client dynamically by searching a capability manifest for advertised registries.
 
 ```python
 import asyncio
-from agent_finder_client import fetch_manifest, AgentFinderClient
+from ard_client import fetch_manifest, ArdClient
 
 async def main():
     manifest = await fetch_manifest("example.com")
     
     # Automatically discovers registry entries and configures base_url
-    async with AgentFinderClient.from_manifest(manifest) as client:
+    async with ArdClient.from_manifest(manifest) as client:
         print(f"Connected to dynamic registry at: {client.base_url}")
         # Execute searches or exploration...
 
@@ -64,10 +67,10 @@ Perform natural language semantic searches against a dynamic Agent Registry.
 
 ```python
 import asyncio
-from agent_finder_client import AgentFinderClient
+from ard_client import ArdClient
 
 async def main():
-    async with AgentFinderClient(base_url="https://registry.example.com/api/v1") as client:
+    async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
         response = await client.search(
             text="find me a flight booking agent",
             filter_={
@@ -96,14 +99,14 @@ Execute aggregated statistical and bucket queries over matched capabilities in t
 
 ```python
 import asyncio
-from agent_finder_client import (
-    AgentFinderClient,
+from ard_client import (
+    ArdClient,
     ExploreResultType,
     ExploreFacetRequest
 )
 
 async def main():
-    async with AgentFinderClient(base_url="https://registry.example.com/api/v1") as client:
+    async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
         # Setup aggregation fields for facet breakdowns
         result_type = ExploreResultType(
             facets=[
@@ -132,10 +135,10 @@ Query the dynamic registry deterministically using structured filter syntax (ide
 
 ```python
 import asyncio
-from agent_finder_client import AgentFinderClient
+from ard_client import ArdClient
 
 async def main():
-    async with AgentFinderClient(base_url="https://registry.example.com/api/v1") as client:
+    async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
         response = await client.list_agents(
             filter_expr="type = 'application/mcp-server+json' AND createdAfter > '2026-01-01'",
             order_by="displayName ASC",
@@ -144,6 +147,38 @@ async def main():
         
         for entry in response.items:
             print(f"- {entry.displayName} [{entry.type_}] ({entry.identifier})")
+
+asyncio.run(main())
+```
+
+### 6. 🤗 Real-world Manifest and Dynamic Search (Hugging Face)
+Fetch the capability manifest from a public Hugging Face Agent Finder space, bootstrap the search client, and run semantic queries.
+
+```python
+import asyncio
+from ard_client import fetch_manifest, ArdClient
+
+async def main():
+    # Fetch from the well-known Hugging Face ARD manifest
+    manifest = await fetch_manifest("https://evalstate-hf-agentfinder.hf.space/.well-known/ai-catalog.json")
+    
+    # Initialize ArdClient from the parsed manifest
+    async with ArdClient.from_manifest(manifest) as client:
+        print(f"Connected to dynamic registry at: {client.base_url}")
+        
+        # Invoke search on the Hugging Face Agent registry
+        response = await client.search(
+            text="weather",
+            page_size=3
+        )
+        
+        import json
+        print("Raw JSON Response:")
+        print(json.dumps(response.to_dict(), indent=2))
+        
+        print(f"\nFound {len(response.results)} agents:")
+        for result in response.results:
+            print(f"- [{result.score:.2f}%] {result.displayName} ({result.type_})")
 
 asyncio.run(main())
 ```
