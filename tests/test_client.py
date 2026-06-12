@@ -92,9 +92,7 @@ async def test_async_client_search():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with ArdClient(
-            base_url="https://registry.example.com/api/v1"
-        ) as client:
+        async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
             response = await client.search(
                 text="find me a flight booking agent",
                 filter_={
@@ -133,9 +131,7 @@ async def test_async_client_explore():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with ArdClient(
-            base_url="https://registry.example.com/api/v1"
-        ) as client:
+        async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
             result_type = ExploreResultType(
                 facets=[ExploreFacetRequest(field="type", limit=10)]
             )
@@ -191,9 +187,7 @@ async def test_async_client_list_agents():
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_response
 
-        async with ArdClient(
-            base_url="https://registry.example.com/api/v1"
-        ) as client:
+        async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
             resp = await client.list_agents(
                 filter_expr="name == 'assistant'",
                 order_by="name ASC",
@@ -223,6 +217,12 @@ async def test_base_url_auto_prefixing():
 
     client2 = ArdClient(base_url="http://localhost:8080")
     assert client2.base_url == "http://localhost:8080"
+
+    client3 = ArdClient(base_url="http://registry.example.com/api/v1")
+    assert client3.base_url == "http://registry.example.com/api/v1"
+
+    client4 = ArdClient(base_url="https://registry.example.com/api/v1")
+    assert client4.base_url == "https://registry.example.com/api/v1"
 
 
 @pytest.mark.asyncio
@@ -291,16 +291,12 @@ async def test_client_from_manifest():
     assert client.base_url == "https://registry.example.com/api/v1"
 
     # 2. Create client by matching specific URN identifier
-    client2 = ArdClient.from_manifest(
-        manifest, "urn:ai:example.com:registry:global"
-    )
+    client2 = ArdClient.from_manifest(manifest, "urn:ai:example.com:registry:global")
     assert client2.base_url == "https://registry.example.com/api/v1"
 
     # 3. Error raised when identifier is not found
     with pytest.raises(ValueError) as exc_info:
-        ArdClient.from_manifest(
-            manifest, "urn:ai:example.com:registry:not-exist"
-        )
+        ArdClient.from_manifest(manifest, "urn:ai:example.com:registry:not-exist")
     assert "No registry entry with identifier" in str(exc_info.value)
 
     # 4. Error raised when manifest has no registry entries
@@ -333,9 +329,7 @@ async def test_client_http_error_wrapping():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = mock_response
 
-        async with ArdClient(
-            base_url="https://registry.example.com/api/v1"
-        ) as client:
+        async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
             with pytest.raises(ArdHttpError) as exc_info:
                 await client.search("test")
 
@@ -351,9 +345,7 @@ async def test_client_network_error_wrapping():
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.side_effect = httpx.ConnectError("Connection refused")
 
-        async with ArdClient(
-            base_url="https://registry.example.com/api/v1"
-        ) as client:
+        async with ArdClient(base_url="https://registry.example.com/api/v1") as client:
             with pytest.raises(ArdNetworkError) as exc_info:
                 await client.search("test")
 

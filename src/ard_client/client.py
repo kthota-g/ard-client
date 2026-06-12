@@ -127,16 +127,12 @@ class ArdClient:
         """
         if base_url:
             base_url = base_url.rstrip("/")
-            if base_url.startswith("http://"):
-                parsed = urlparse(base_url)
-                if parsed.hostname not in ("localhost", "127.0.0.1") and not parsed.hostname.startswith("192.168."):
-                    base_url = f"https://{parsed.netloc}{parsed.path}"
-            elif not base_url.startswith("https://"):
+            if not base_url.startswith(("http://", "https://")):
                 base_url = f"https://{base_url}"
-            
+
             for suffix in ("/search", "/explore", "/agents"):
                 if base_url.endswith(suffix):
-                    base_url = base_url[:-len(suffix)]
+                    base_url = base_url[: -len(suffix)]
                     break
         self.base_url = base_url
         self._client = client or httpx.AsyncClient(follow_redirects=True)

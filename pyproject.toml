@@ -26,6 +26,11 @@ exclude = ["tests/"]
 vcs = "git"
 style = "pep440"
 
+[tool.uv.workspace]
+members = [
+    "examples/travel_planner",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",

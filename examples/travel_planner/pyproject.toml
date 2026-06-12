@@ -1,0 +1,26 @@
+[project]
+name = "travel-planner"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ard-client",
+    "mcp>=1.27.2",
+    "google-adk[a2a]>=2.2.0",
+    "rich>=15.0.0",
+]
+
+[project.scripts]
+start-servers = "servers:run_main"
+client = "client:run_main"
+
+[tool.uv.sources]
+ard-client = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
