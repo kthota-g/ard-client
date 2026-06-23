@@ -14,6 +14,7 @@ dependencies = [
 [project.scripts]
 start-servers = "servers:run_main"
 client = "client:run_main"
+demo = "demo_discovery:main"
 
 [tool.uv.sources]
 ard-client = { workspace = true }
