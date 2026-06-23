@@ -2,6 +2,7 @@ import asyncio
 import http.server
 import json
 import os
+import re
 import sys
 import threading
 from urllib.parse import urlparse
@@ -19,12 +20,14 @@ MOCK_AGENTS_DB = [
         "displayName": "Forex FX Converter",
         "type": "application/mcp-server+json",
         "description": "Calculates foreign exchange currency rates and converts major world currencies.",
-        "tags": ["finance", "currency", "exchange"],
+        "tags": ["finance", "currency", "exchange", "money", "forex"],
         "capabilities": ["currency_conversion", "exchange_rates"],
         "representativeQueries": [
             "USD to JPY conversion rate",
             "convert money",
             "currency converter",
+            "exchange dollars to euros",
+            "how much is 100 USD in EUR",
         ],
         "version": "1.1.0",
         "data": {
@@ -37,16 +40,104 @@ MOCK_AGENTS_DB = [
         "displayName": "A2A Travel Advisor",
         "type": "application/a2a-agent-card+json",
         "description": "Premium travel advisor that plans flights and hotel bookings.",
-        "tags": ["travel", "planner", "advisor", "itinerary"],
+        "tags": [
+            "travel",
+            "planner",
+            "advisor",
+            "itinerary",
+            "trip",
+            "flights",
+            "hotels",
+            "vacation",
+        ],
         "capabilities": ["travel_planning", "itinerary_generation"],
         "representativeQueries": [
             "plan a trip to Tokyo",
             "itinerary for Paris",
+            "book a holiday in Berlin",
+            "find flights and hotels for Tokyo",
         ],
         "version": "1.0.0",
         "url": f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
     },
 ]
+
+REGISTRY_SOURCE = "urn:ai:travel-planner:registry:main"
+
+# --- DISCOVERY / RANKING ---
+# A tiny, dependency-free matcher. Real ARD registries use vector search; here we
+# score by token overlap so natural queries (not just exact keywords) resolve to
+# the right resource.
+
+_STOPWORDS = frozenset(
+    "a an and are as at be by for from how i in into is it me my need of on or "
+    "please that the to want what with you your".split()
+)
+
+
+def _tokenize(text: str) -> set[str]:
+    """Lowercase, split on non-alphanumerics, and drop stopwords."""
+    return {
+        tok
+        for tok in re.split(r"[^a-z0-9]+", text.lower())
+        if tok and tok not in _STOPWORDS
+    }
+
+
+def score_entry(query: str, entry: dict) -> float:
+    """Score a catalog entry against a free-text query (0-100, higher is better)."""
+    q_tokens = _tokenize(query)
+    if not q_tokens:
+        return 0.0
+
+    keywords: set[str] = set()
+    for field in ("tags", "capabilities", "representativeQueries"):
+        for value in entry.get(field, []):
+            keywords |= _tokenize(value)
+    keywords |= _tokenize(entry.get("displayName", ""))
+    desc_tokens = _tokenize(entry.get("description", ""))
+
+    keyword_hits = q_tokens & keywords
+    desc_hits = (q_tokens & desc_tokens) - keyword_hits
+    score = 18.0 * len(keyword_hits) + 6.0 * len(desc_hits)
+
+    # Boost by the closest representative example query (fraction of it covered).
+    best_example = 0.0
+    for example in entry.get("representativeQueries", []):
+        ex_tokens = _tokenize(example)
+        if ex_tokens:
+            best_example = max(best_example, len(q_tokens & ex_tokens) / len(ex_tokens))
+    score += 40.0 * best_example
+
+    return min(score, 100.0)
+
+
+def search_catalog(query: str, db: list | None = None, limit: int = 10) -> list:
+    """Rank catalog entries for a query and return ARD search-result dicts."""
+    catalog = MOCK_AGENTS_DB if db is None else db
+    results = []
+    for entry in catalog:
+        score = score_entry(query, entry)
+        if score <= 0.0:
+            continue
+        results.append(
+            {
+                "identifier": entry["identifier"],
+                "displayName": entry["displayName"],
+                "type": entry["type"],
+                "description": entry["description"],
+                "tags": entry["tags"],
+                "capabilities": entry["capabilities"],
+                "representativeQueries": entry["representativeQueries"],
+                "version": entry["version"],
+                "score": round(score, 1),
+                "source": REGISTRY_SOURCE,
+                "url": entry.get("url"),
+                "data": entry.get("data"),
+            }
+        )
+    results.sort(key=lambda r: r["score"], reverse=True)
+    return results[:limit]
 
 
 class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
@@ -93,37 +184,8 @@ class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
                 if isinstance(query_obj, dict)
                 else str(query_obj)
             )
-            query = query.lower()
 
-            results = []
-            for agent in MOCK_AGENTS_DB:
-                score = 0.0
-                for tag in agent.get("tags", []):
-                    if tag in query:
-                        score += 50.0
-                for req_query in agent.get("representativeQueries", []):
-                    if req_query.lower() in query or query in req_query.lower():
-                        score += 50.0
-
-                if score > 0.0:
-                    results.append(
-                        {
-                            "identifier": agent["identifier"],
-                            "displayName": agent["displayName"],
-                            "type": agent["type"],
-                            "description": agent["description"],
-                            "tags": agent["tags"],
-                            "capabilities": agent["capabilities"],
-                            "representativeQueries": agent["representativeQueries"],
-                            "version": agent["version"],
-                            "score": min(score, 100.0),
-                            "source": "urn:ai:travel-planner:registry:main",
-                            "url": agent.get("url"),
-                            "data": agent.get("data"),
-                        }
-                    )
-
-            results.sort(key=lambda x: x["score"], reverse=True)
+            results = search_catalog(query)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
