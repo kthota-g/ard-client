@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 start-servers = "servers:run_main"
+start-multitenancy = "a2a_multi_tenancy:run_main"
 client = "client:run_main"
 demo = "demo_discovery:main"
 
