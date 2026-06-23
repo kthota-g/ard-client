@@ -13,6 +13,8 @@ import httpx
 REGISTRY_PORT = 8500
 MCP_PORT = 8501
 A2A_PORT = 8502
+WEATHER_PORT = 8503
+POET_PORT = 8504
 
 MOCK_AGENTS_DB = [
     {
@@ -59,6 +61,36 @@ MOCK_AGENTS_DB = [
         ],
         "version": "1.0.0",
         "url": f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
+    },
+    {
+        "identifier": "urn:ai:travel-planner:agent:weather-poet",
+        "displayName": "Weather Poet",
+        "type": "application/a2a-agent-card+json",
+        "description": "Looks up the weather for a place and time, then writes a haiku about it.",
+        "tags": ["weather", "forecast", "haiku", "sky", "climate"],
+        "capabilities": ["weather_lookup", "haiku_generation"],
+        "representativeQueries": [
+            "what is the weather in Berlin",
+            "weather forecast as a haiku",
+            "today's weather and a haiku",
+        ],
+        "version": "1.0.0",
+        "url": f"http://127.0.0.1:{WEATHER_PORT}/.well-known/agent-card.json",
+    },
+    {
+        "identifier": "urn:ai:travel-planner:agent:personal-poet",
+        "displayName": "Personal Poet",
+        "type": "application/a2a-agent-card+json",
+        "description": "Asks a few friendly questions and writes a happy, personal poem for you.",
+        "tags": ["poem", "poet", "personal", "fun", "delight"],
+        "capabilities": ["poem_generation"],
+        "representativeQueries": [
+            "write me a poem",
+            "a poem about me",
+            "make me a happy poem",
+        ],
+        "version": "1.0.0",
+        "url": f"http://127.0.0.1:{POET_PORT}/.well-known/agent-card.json",
     },
 ]
 
@@ -201,7 +233,7 @@ def start_registry_server(port: int) -> http.server.HTTPServer:
     return server
 
 
-async def wait_until_healthy(url: str, name: str, timeout_sec: float = 15.0):
+async def wait_until_healthy(url: str, name: str, timeout_sec: float = 30.0):
     async with httpx.AsyncClient() as http_client:
         steps = int(timeout_sec / 0.5)
         for _ in range(steps):
@@ -215,46 +247,63 @@ async def wait_until_healthy(url: str, name: str, timeout_sec: float = 15.0):
         raise RuntimeError(f"{name} healthy check failed at {url}")
 
 
+async def _spawn(script_name: str, port: int, extra_env: dict | None = None):
+    """Spawn a server script as a subprocess on its own port. Returns (proc, log)."""
+    script = os.path.join(os.path.dirname(__file__), script_name)
+    log = open(f"{script_name}.{port}.log", "w")
+    env = {**os.environ, "PORT": str(port)}
+    if extra_env:
+        env.update(extra_env)
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, script, env=env, stdout=log, stderr=log
+    )
+    return proc, log
+
+
 async def main():
     print("==========================================================")
-    print("            STARTING STANDALONE TRAVEL SERVERS            ")
+    print("          STARTING ARD + A2A SERVERS (all-in-one)         ")
     print("==========================================================")
 
-    # 1. Start Registry Server
+    # 1. Registry (in-process thread).
     registry_server = start_registry_server(REGISTRY_PORT)
     print(f"[+] Registry Server started on http://127.0.0.1:{REGISTRY_PORT}")
 
-    # 2. Spawn Currency MCP Server
-    mcp_script = os.path.join(os.path.dirname(__file__), "currency_mcp.py")
-    print(f"[*] Spawning Currency MCP Server on http://127.0.0.1:{MCP_PORT}...")
-    mcp_log = open("mcp.log", "w")
-    mcp_proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        mcp_script,
-        env={**os.environ, "PORT": str(MCP_PORT)},
-        stdout=mcp_log,
-        stderr=mcp_log,
-    )
-
-    # 3. Spawn A2A Travel Advisor
-    a2a_script = os.path.join(os.path.dirname(__file__), "travel_agent.py")
-    print(f"[*] Spawning A2A Travel Advisor on http://127.0.0.1:{A2A_PORT}...")
-    a2a_log = open("a2a.log", "w")
-    a2a_proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        a2a_script,
-        env={**os.environ, "PORT": str(A2A_PORT)},
-        stdout=a2a_log,
-        stderr=a2a_log,
-    )
+    # 2. Spawn every resource server, each on its own port.
+    #    (script, port, extra_env, health_url)
+    plan = [
+        ("currency_mcp.py", MCP_PORT, None, f"http://127.0.0.1:{MCP_PORT}/"),
+        (
+            "travel_agent.py",
+            A2A_PORT,
+            None,
+            f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
+        ),
+        (
+            "a2a_multi_tenancy_new.py",
+            WEATHER_PORT,
+            {"AGENT": "weather_poet"},
+            f"http://127.0.0.1:{WEATHER_PORT}/.well-known/agent-card.json",
+        ),
+        (
+            "a2a_multi_tenancy_new.py",
+            POET_PORT,
+            {"AGENT": "personal_poet"},
+            f"http://127.0.0.1:{POET_PORT}/.well-known/agent-card.json",
+        ),
+    ]
+    spawned = []  # (label, proc, log)
+    health = []  # (url, label)
+    for script, port, extra_env, health_url in plan:
+        label = (extra_env or {}).get("AGENT", script)
+        print(f"[*] Spawning {label} on http://127.0.0.1:{port}...")
+        proc, log = await _spawn(script, port, extra_env)
+        spawned.append((label, proc, log))
+        health.append((health_url, label))
 
     try:
-        # 4. Wait for servers to be healthy
-        await wait_until_healthy(f"http://127.0.0.1:{MCP_PORT}/", "Currency MCP Server")
-        await wait_until_healthy(
-            f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
-            "A2A Travel Advisor Server",
-        )
+        for url, label in health:
+            await wait_until_healthy(url, label)
         print("[+] All servers are healthy and running!")
         print(
             f"    - Catalog Manifest: http://127.0.0.1:{REGISTRY_PORT}/.well-known/ai-catalog.json"
@@ -272,22 +321,14 @@ async def main():
         print("\n[*] Terminating servers and cleaning up...")
         registry_server.shutdown()
         registry_server.server_close()
-
-        if mcp_proc.returncode is None:
-            try:
-                mcp_proc.terminate()
-                await mcp_proc.wait()
-            except Exception:
-                pass
-        if a2a_proc.returncode is None:
-            try:
-                a2a_proc.terminate()
-                await a2a_proc.wait()
-            except Exception:
-                pass
-
-        mcp_log.close()
-        a2a_log.close()
+        for _label, proc, log in spawned:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await proc.wait()
+                except Exception:
+                    pass
+            log.close()
         print("[+] Cleanup complete. Servers stopped.")
 
 

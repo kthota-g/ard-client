@@ -6,7 +6,7 @@ ephemeral port and shuts it down. No model calls, no standalone servers.
 
 import httpx
 
-import a2a_multi_tenancy as mt
+import servers as mt
 import a2a_multi_tenancy_new as agents
 
 

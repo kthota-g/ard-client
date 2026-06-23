@@ -30,7 +30,7 @@ def test_natural_language_generalizes_beyond_seeded_queries():
 
 
 def test_unrelated_query_returns_nothing():
-    assert servers.search_catalog("what is the weather today") == []
+    assert servers.search_catalog("tell me a dad joke") == []
 
 
 def test_empty_query_scores_zero():

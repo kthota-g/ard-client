@@ -16,9 +16,9 @@ import servers
 QUERIES = [
     "plan a trip to Tokyo",
     "convert 100 USD to EUR",
-    "book a holiday in Berlin",
-    "exchange dollars to euros",
-    "what is the weather today",  # intentionally has no matching resource
+    "what is the weather forecast and a haiku",
+    "write me a happy poem about me",
+    "tell me a dad joke",  # intentionally has no matching resource
 ]
 
 # How each catalog entry type would be invoked after discovery.
