@@ -25,6 +25,24 @@ ALLOWED_REGISTRIES = [
 console = Console()
 
 
+def _breadcrumb(*crumbs: str) -> str:
+    """Join the ARD context trail, e.g. 'ARD › A2A › Travel Advisor'."""
+    return " › ".join(["ARD", *crumbs])
+
+
+def _clean_name(display_name: str, protocol: str) -> str:
+    """Drop a redundant leading protocol word ('A2A Travel Advisor' -> 'Travel Advisor')."""
+    prefix = f"{protocol} "
+    return (
+        display_name[len(prefix) :] if display_name.startswith(prefix) else display_name
+    )
+
+
+def ard_prompt(*crumbs: str, label: str = "user") -> str:
+    """A bracketed breadcrumb input prompt: [ARD › ...] <label> ❯ (rich markup)."""
+    return f"[bold cyan]\\[{_breadcrumb(*crumbs)}][/bold cyan] [bold]{label} ❯[/bold] "
+
+
 def print_a2a_response(response) -> str | None:
     """Helper to parse and print text content from any standard A2A response payload.
 
@@ -108,7 +126,12 @@ async def handle_mcp_server(entry, query: str):
 
         # 2. Let user choose a tool
         choice = console.input(
-            f"\n[bold yellow]Select tool to invoke (1-{len(tools)}): [/]"
+            "\n"
+            + ard_prompt(
+                "MCP",
+                _clean_name(entry.displayName, "MCP"),
+                label=f"select tool 1-{len(tools)}",
+            )
         ).strip()
         try:
             choice_idx = int(choice) - 1
@@ -134,9 +157,14 @@ async def handle_mcp_server(entry, query: str):
                 "\n[bold yellow]✍️  Please provide values for the arguments:[/]"
             )
             for prop_name, prop_info in properties.items():
-                req_marker = " [bold red](Required)[/]" if prop_name in required else ""
+                req_marker = " (required)" if prop_name in required else ""
                 val = console.input(
-                    f"  - [bold]{prop_name}[/] ({prop_info.get('type', 'any')}){req_marker}: "
+                    "\n"
+                    + ard_prompt(
+                        "MCP",
+                        _clean_name(entry.displayName, "MCP"),
+                        label=f"{prop_name} ({prop_info.get('type', 'any')}){req_marker}",
+                    )
                 ).strip()
                 if val:
                     # Basic casting
@@ -232,7 +260,7 @@ async def handle_a2a_server(entry, query: str):
 
             # Ask user for next turn input
             current_prompt = console.input(
-                f"\n[bold yellow]Chat with {entry.displayName} (press Enter to exit): [/]"
+                "\n" + ard_prompt("A2A", _clean_name(entry.displayName, "A2A"))
             ).strip()
             if not current_prompt:
                 break
@@ -278,11 +306,12 @@ async def main():
         )
         console.print("-" * 58)
 
+        console.print(
+            "[dim](type a request to discover an agent or tool · press Enter on an empty line to exit)[/]"
+        )
         while True:
             try:
-                query = console.input(
-                    "\n[bold yellow]Enter search query/task (or press Enter to exit client): [/]"
-                ).strip()
+                query = console.input("\n" + ard_prompt()).strip()
                 if not query:
                     break
 
