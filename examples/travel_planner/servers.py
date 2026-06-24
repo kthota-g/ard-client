@@ -172,6 +172,15 @@ def search_catalog(query: str, db: list | None = None, limit: int = 10) -> list:
     return results[:limit]
 
 
+def _protocol_label(type_: str) -> str:
+    """Human-friendly protocol name for a catalog entry type."""
+    if type_ == "application/a2a-agent-card+json":
+        return "A2A"
+    if type_ in ("application/mcp-server+json", "application/mcp-server-card+json"):
+        return "MCP"
+    return type_
+
+
 class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # Suppress logging to keep output clean
@@ -179,6 +188,7 @@ class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/.well-known/ai-catalog.json":
+            print("🗂️  Manifest requested → advertising the registry catalog")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -217,7 +227,18 @@ class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
                 else str(query_obj)
             )
 
+            print(f"🗣️  UserRequest: {query!r}")
+            print("🔎 Searching the ARD registry catalog...")
             results = search_catalog(query)
+            if results:
+                top = results[0]
+                print(
+                    f"🎯 Matched: {top['displayName']} (score {top['score']}) "
+                    f"→ client connects over {_protocol_label(top['type'])}"
+                )
+            else:
+                print("❌ No matching resource found")
+
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
