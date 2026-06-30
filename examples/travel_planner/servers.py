@@ -2,6 +2,7 @@ import asyncio
 import http.server
 import json
 import os
+import re
 import sys
 import threading
 from urllib.parse import urlparse
@@ -12,6 +13,8 @@ import httpx
 REGISTRY_PORT = 8500
 MCP_PORT = 8501
 A2A_PORT = 8502
+WEATHER_PORT = 8503
+POET_PORT = 8504
 
 MOCK_AGENTS_DB = [
     {
@@ -19,12 +22,14 @@ MOCK_AGENTS_DB = [
         "displayName": "Forex FX Converter",
         "type": "application/mcp-server+json",
         "description": "Calculates foreign exchange currency rates and converts major world currencies.",
-        "tags": ["finance", "currency", "exchange"],
+        "tags": ["finance", "currency", "exchange", "money", "forex"],
         "capabilities": ["currency_conversion", "exchange_rates"],
         "representativeQueries": [
             "USD to JPY conversion rate",
             "convert money",
             "currency converter",
+            "exchange dollars to euros",
+            "how much is 100 USD in EUR",
         ],
         "version": "1.1.0",
         "data": {
@@ -37,16 +42,143 @@ MOCK_AGENTS_DB = [
         "displayName": "A2A Travel Advisor",
         "type": "application/a2a-agent-card+json",
         "description": "Premium travel advisor that plans flights and hotel bookings.",
-        "tags": ["travel", "planner", "advisor", "itinerary"],
+        "tags": [
+            "travel",
+            "planner",
+            "advisor",
+            "itinerary",
+            "trip",
+            "flights",
+            "hotels",
+            "vacation",
+        ],
         "capabilities": ["travel_planning", "itinerary_generation"],
         "representativeQueries": [
             "plan a trip to Tokyo",
             "itinerary for Paris",
+            "book a holiday in Berlin",
+            "find flights and hotels for Tokyo",
         ],
         "version": "1.0.0",
         "url": f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
     },
+    {
+        "identifier": "urn:ai:travel-planner:agent:weather-poet",
+        "displayName": "Weather Poet",
+        "type": "application/a2a-agent-card+json",
+        "description": "Looks up the weather for a place and time, then writes a haiku about it.",
+        "tags": ["weather", "forecast", "haiku", "sky", "climate"],
+        "capabilities": ["weather_lookup", "haiku_generation"],
+        "representativeQueries": [
+            "what is the weather in Berlin",
+            "weather forecast as a haiku",
+            "today's weather and a haiku",
+        ],
+        "version": "1.0.0",
+        "url": f"http://127.0.0.1:{WEATHER_PORT}/.well-known/agent-card.json",
+    },
+    {
+        "identifier": "urn:ai:travel-planner:agent:personal-poet",
+        "displayName": "Personal Poet",
+        "type": "application/a2a-agent-card+json",
+        "description": "Asks a few friendly questions and writes a happy, personal poem for you.",
+        "tags": ["poem", "poet", "personal", "fun", "delight"],
+        "capabilities": ["poem_generation"],
+        "representativeQueries": [
+            "write me a poem",
+            "a poem about me",
+            "make me a happy poem",
+        ],
+        "version": "1.0.0",
+        "url": f"http://127.0.0.1:{POET_PORT}/.well-known/agent-card.json",
+    },
 ]
+
+REGISTRY_SOURCE = "urn:ai:travel-planner:registry:main"
+
+# --- DISCOVERY / RANKING ---
+# A tiny, dependency-free matcher. Real ARD registries use vector search; here we
+# score by token overlap so natural queries (not just exact keywords) resolve to
+# the right resource.
+
+_STOPWORDS = frozenset(
+    "a an and are as at be by for from how i in into is it me my need of on or "
+    "please that the to want what with you your".split()
+)
+
+
+def _tokenize(text: str) -> set[str]:
+    """Lowercase, split on non-alphanumerics, and drop stopwords."""
+    return {
+        tok
+        for tok in re.split(r"[^a-z0-9]+", text.lower())
+        if tok and tok not in _STOPWORDS
+    }
+
+
+def score_entry(query: str, entry: dict) -> float:
+    """Score a catalog entry against a free-text query (0-100, higher is better)."""
+    q_tokens = _tokenize(query)
+    if not q_tokens:
+        return 0.0
+
+    keywords: set[str] = set()
+    for field in ("tags", "capabilities", "representativeQueries"):
+        for value in entry.get(field, []):
+            keywords |= _tokenize(value)
+    keywords |= _tokenize(entry.get("displayName", ""))
+    desc_tokens = _tokenize(entry.get("description", ""))
+
+    keyword_hits = q_tokens & keywords
+    desc_hits = (q_tokens & desc_tokens) - keyword_hits
+    score = 18.0 * len(keyword_hits) + 6.0 * len(desc_hits)
+
+    # Boost by the closest representative example query (fraction of it covered).
+    best_example = 0.0
+    for example in entry.get("representativeQueries", []):
+        ex_tokens = _tokenize(example)
+        if ex_tokens:
+            best_example = max(best_example, len(q_tokens & ex_tokens) / len(ex_tokens))
+    score += 40.0 * best_example
+
+    return min(score, 100.0)
+
+
+def search_catalog(query: str, db: list | None = None, limit: int = 10) -> list:
+    """Rank catalog entries for a query and return ARD search-result dicts."""
+    catalog = MOCK_AGENTS_DB if db is None else db
+    results = []
+    for entry in catalog:
+        score = score_entry(query, entry)
+        if score <= 0.0:
+            continue
+        results.append(
+            {
+                "identifier": entry["identifier"],
+                "displayName": entry["displayName"],
+                "type": entry["type"],
+                "description": entry["description"],
+                "tags": entry["tags"],
+                "capabilities": entry["capabilities"],
+                "representativeQueries": entry["representativeQueries"],
+                "version": entry["version"],
+                "score": round(score, 1),
+                "source": REGISTRY_SOURCE,
+                "url": entry.get("url"),
+                "data": entry.get("data"),
+            }
+        )
+    results.sort(key=lambda r: r["score"], reverse=True)
+    return results[:limit]
+
+
+def _protocol_label(type_: str) -> str:
+    """Human-friendly protocol name for a catalog entry type."""
+    if type_ == "application/a2a-agent-card+json":
+        return "A2A"
+    if type_ in ("application/mcp-server+json", "application/mcp-server-card+json"):
+        return "MCP"
+    return type_
 
 
 class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
@@ -56,6 +188,7 @@ class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/.well-known/ai-catalog.json":
+            print("🗂️  Manifest requested → advertising the registry catalog")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -93,37 +226,19 @@ class MockRegistryHandler(http.server.BaseHTTPRequestHandler):
                 if isinstance(query_obj, dict)
                 else str(query_obj)
             )
-            query = query.lower()
 
-            results = []
-            for agent in MOCK_AGENTS_DB:
-                score = 0.0
-                for tag in agent.get("tags", []):
-                    if tag in query:
-                        score += 50.0
-                for req_query in agent.get("representativeQueries", []):
-                    if req_query.lower() in query or query in req_query.lower():
-                        score += 50.0
+            print(f"🗣️  UserRequest: {query!r}")
+            print("🔎 Searching the ARD registry catalog...")
+            results = search_catalog(query)
+            if results:
+                top = results[0]
+                print(
+                    f"🎯 Matched: {top['displayName']} (score {top['score']}) "
+                    f"→ client connects over {_protocol_label(top['type'])}"
+                )
+            else:
+                print("❌ No matching resource found")
 
-                if score > 0.0:
-                    results.append(
-                        {
-                            "identifier": agent["identifier"],
-                            "displayName": agent["displayName"],
-                            "type": agent["type"],
-                            "description": agent["description"],
-                            "tags": agent["tags"],
-                            "capabilities": agent["capabilities"],
-                            "representativeQueries": agent["representativeQueries"],
-                            "version": agent["version"],
-                            "score": min(score, 100.0),
-                            "source": "urn:ai:travel-planner:registry:main",
-                            "url": agent.get("url"),
-                            "data": agent.get("data"),
-                        }
-                    )
-
-            results.sort(key=lambda x: x["score"], reverse=True)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
@@ -139,7 +254,7 @@ def start_registry_server(port: int) -> http.server.HTTPServer:
     return server
 
 
-async def wait_until_healthy(url: str, name: str, timeout_sec: float = 15.0):
+async def wait_until_healthy(url: str, name: str, timeout_sec: float = 30.0):
     async with httpx.AsyncClient() as http_client:
         steps = int(timeout_sec / 0.5)
         for _ in range(steps):
@@ -153,46 +268,63 @@ async def wait_until_healthy(url: str, name: str, timeout_sec: float = 15.0):
         raise RuntimeError(f"{name} healthy check failed at {url}")
 
 
+async def _spawn(script_name: str, port: int, extra_env: dict | None = None):
+    """Spawn a server script as a subprocess on its own port. Returns (proc, log)."""
+    script = os.path.join(os.path.dirname(__file__), script_name)
+    log = open(f"{script_name}.{port}.log", "w")
+    env = {**os.environ, "PORT": str(port)}
+    if extra_env:
+        env.update(extra_env)
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable, script, env=env, stdout=log, stderr=log
+    )
+    return proc, log
+
+
 async def main():
     print("==========================================================")
-    print("            STARTING STANDALONE TRAVEL SERVERS            ")
+    print("          STARTING ARD + A2A SERVERS (all-in-one)         ")
     print("==========================================================")
 
-    # 1. Start Registry Server
+    # 1. Registry (in-process thread).
     registry_server = start_registry_server(REGISTRY_PORT)
     print(f"[+] Registry Server started on http://127.0.0.1:{REGISTRY_PORT}")
 
-    # 2. Spawn Currency MCP Server
-    mcp_script = os.path.join(os.path.dirname(__file__), "currency_mcp.py")
-    print(f"[*] Spawning Currency MCP Server on http://127.0.0.1:{MCP_PORT}...")
-    mcp_log = open("mcp.log", "w")
-    mcp_proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        mcp_script,
-        env={**os.environ, "PORT": str(MCP_PORT)},
-        stdout=mcp_log,
-        stderr=mcp_log,
-    )
-
-    # 3. Spawn A2A Travel Advisor
-    a2a_script = os.path.join(os.path.dirname(__file__), "travel_agent.py")
-    print(f"[*] Spawning A2A Travel Advisor on http://127.0.0.1:{A2A_PORT}...")
-    a2a_log = open("a2a.log", "w")
-    a2a_proc = await asyncio.create_subprocess_exec(
-        sys.executable,
-        a2a_script,
-        env={**os.environ, "PORT": str(A2A_PORT)},
-        stdout=a2a_log,
-        stderr=a2a_log,
-    )
+    # 2. Spawn every resource server, each on its own port.
+    #    (script, port, extra_env, health_url)
+    plan = [
+        ("currency_mcp.py", MCP_PORT, None, f"http://127.0.0.1:{MCP_PORT}/"),
+        (
+            "travel_agent.py",
+            A2A_PORT,
+            None,
+            f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
+        ),
+        (
+            "a2a_multi_tenancy_new.py",
+            WEATHER_PORT,
+            {"AGENT": "weather_poet"},
+            f"http://127.0.0.1:{WEATHER_PORT}/.well-known/agent-card.json",
+        ),
+        (
+            "a2a_multi_tenancy_new.py",
+            POET_PORT,
+            {"AGENT": "personal_poet"},
+            f"http://127.0.0.1:{POET_PORT}/.well-known/agent-card.json",
+        ),
+    ]
+    spawned = []  # (label, proc, log)
+    health = []  # (url, label)
+    for script, port, extra_env, health_url in plan:
+        label = (extra_env or {}).get("AGENT", script)
+        print(f"[*] Spawning {label} on http://127.0.0.1:{port}...")
+        proc, log = await _spawn(script, port, extra_env)
+        spawned.append((label, proc, log))
+        health.append((health_url, label))
 
     try:
-        # 4. Wait for servers to be healthy
-        await wait_until_healthy(f"http://127.0.0.1:{MCP_PORT}/", "Currency MCP Server")
-        await wait_until_healthy(
-            f"http://127.0.0.1:{A2A_PORT}/.well-known/agent-card.json",
-            "A2A Travel Advisor Server",
-        )
+        for url, label in health:
+            await wait_until_healthy(url, label)
         print("[+] All servers are healthy and running!")
         print(
             f"    - Catalog Manifest: http://127.0.0.1:{REGISTRY_PORT}/.well-known/ai-catalog.json"
@@ -210,22 +342,14 @@ async def main():
         print("\n[*] Terminating servers and cleaning up...")
         registry_server.shutdown()
         registry_server.server_close()
-
-        if mcp_proc.returncode is None:
-            try:
-                mcp_proc.terminate()
-                await mcp_proc.wait()
-            except Exception:
-                pass
-        if a2a_proc.returncode is None:
-            try:
-                a2a_proc.terminate()
-                await a2a_proc.wait()
-            except Exception:
-                pass
-
-        mcp_log.close()
-        a2a_log.close()
+        for _label, proc, log in spawned:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await proc.wait()
+                except Exception:
+                    pass
+            log.close()
         print("[+] Cleanup complete. Servers stopped.")
 
 

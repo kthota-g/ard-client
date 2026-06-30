@@ -88,7 +88,6 @@ Enter search query/task (or press Enter to exit client): travel planner
 
 🔍 Discovered Matches:
   [1] A2A Travel Advisor (application/a2a-agent-card+json)
-  [2] Forex FX Converter (application/mcp-server+json)
 
 🏆 Selected top match: A2A Travel Advisor
 🤖 Instantiating A2A Client for: A2A Travel Advisor (http://127.0.0.1:8502/.well-known/agent-card.json)...
